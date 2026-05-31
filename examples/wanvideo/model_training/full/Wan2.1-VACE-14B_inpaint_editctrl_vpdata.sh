@@ -1,0 +1,42 @@
+export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
+accelerate launch examples/wanvideo/model_training/train.py \
+  --task "sft:inpaint" \
+  --dataset_base_path VPData/videovo_raw_videos \
+  --dataset_metadata_path VPData/pexels_videovo_train_dataset.csv \
+  --data_file_keys "video,vace_video,vace_video_mask" \
+  --height 480 --width 720 --num_frames 49 \
+  --model_id_with_origin_paths "Wan-AI/Wan2.1-VACE-14B:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.1-VACE-14B:models_t5_umt5-xxl-enc-bf16.pth,Wan-AI/Wan2.1-VACE-14B:Wan2.1_VAE.pth" \
+  --learning_rate 1e-5 \
+  --num_epochs 1 \
+  --save_steps 500 \
+  --max_train_steps 10000 \
+  --lora_base_model "vace" \
+  --lora_target_modules "q,k,v,o,ffn.0,ffn.2" \
+  --lora_rank 128 \
+  --remove_prefix_in_ckpt "pipe.vace." \
+  --output_path "./models/train/Wan2.1-VACE-14B_editctrl_local" \
+  --extra_inputs "vace_video,vace_video_mask" \
+  --enable_inpaint_local \
+  --dataset_num_workers 1
+
+export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
+accelerate launch examples/wanvideo/model_training/train.py \
+  --task "sft:inpaint" \
+  --dataset_base_path VPData/videovo_raw_videos \
+  --dataset_metadata_path VPData/pexels_videovo_train_dataset.csv \
+  --data_file_keys "video,vace_video,vace_video_mask" \
+  --height 480 --width 720 --num_frames 49 \
+  --model_id_with_origin_paths "Wan-AI/Wan2.1-VACE-14B:diffusion_pytorch_model*.safetensors,Wan-AI/Wan2.1-VACE-14B:models_t5_umt5-xxl-enc-bf16.pth,Wan-AI/Wan2.1-VACE-14B:Wan2.1_VAE.pth" \
+  --learning_rate 1e-5 \
+  --num_epochs 1 \
+  --save_steps 500 \
+  --max_train_steps 10000 \
+  --preset_lora_path "./models/train/Wan2.1-VACE-14B_editctrl_local/step-10000.safetensors" \
+  --preset_lora_model "vace" \
+  --remove_prefix_in_ckpt "pipe.dit." \
+  --output_path "./models/train/Wan2.1-VACE-14B_editctrl_global" \
+  --extra_inputs "vace_video,vace_video_mask" \
+  --enable_inpaint_local \
+  --enable_inpaint_global \
+  --global_freeze \
+  --dataset_num_workers 1
