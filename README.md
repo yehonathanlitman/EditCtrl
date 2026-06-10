@@ -35,6 +35,8 @@ Five sample `(video, mask)` pairs are shipped in `examples/wanvideo/model_infere
 | Wan 2.1 VACE 14B | [`thebluser/Wan2.1-VACE-14B-editctrl`](https://huggingface.co/thebluser/Wan2.1-VACE-14B-editctrl) |
 | Wan 2.2 VACE Fun A14B | [`thebluser/Wan2.2-VACE-Fun-A14B-editctrl`](https://huggingface.co/thebluser/Wan2.2-VACE-Fun-A14B-editctrl) |
 
+> **Note:** these checkpoints were trained with less compute resources than the internal version, so quality may be subpar.
+
 **Wan 2.1 VACE 1.3B (smallest, fastest):**
 ```bash
 python examples/wanvideo/model_inference/Wan2.1-VACE-1.3B_editctrl.py \
