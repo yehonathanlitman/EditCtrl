@@ -115,6 +115,12 @@ Checkpoints are written to `./models/train/<base>_editctrl_local[_noise]/step-NN
 
 For inference on VPData, run the `_vpdata` variants of the inference scripts (`examples/wanvideo/model_inference/*_editctrl_vpdata.py`).
 
+### Tips for Quality
+
+- **EditCtrl was trained on detailed description-based text prompts, not simple instruction-based text prommpts for editing.** For example, if your video contains a room with a table and you would like to add a cup, do not use a prompt like `Add a cup`, instead use `A glass cup resting on a table in an old English home, its delicately carved details shimmering in the sun.`
+- EditCtrl was trained with mask augmentations but semantic masks like ones inferred with SAM3 lead to better results.
+- Videos with high motion and blur lead to artifacts in the edits due to the weakness of the Wan VAE.
+
 ## Citation
 
 ```bibtex
