@@ -267,14 +267,15 @@ if __name__ == "__main__":
         extra_preset_lora_models=args.extra_preset_lora_models,
     )
     resume_start_step = 0
-    if args.resume_ckpt is not None:
-        import re
-        m = re.search(r"step-(\d+)", os.path.basename(args.resume_ckpt))
+    import re
+    _resume_source = args.resume_ckpt or args.lora_checkpoint
+    if _resume_source is not None:
+        m = re.search(r"step-(\d+)", os.path.basename(_resume_source))
         if m:
             resume_start_step = int(m.group(1))
-            print(f"[resume] continuing global step counter from {resume_start_step}")
+            print(f"[resume] continuing step counter from {resume_start_step} (parsed from {os.path.basename(_resume_source)})")
         else:
-            print(f"[resume] could not parse step number from {args.resume_ckpt!r}; starting step counter at 0")
+            print(f"[resume] could not parse step number from {_resume_source!r}; starting step counter at 0")
     model_logger = ModelLogger(
         args.output_path,
         remove_prefix_in_ckpt=args.remove_prefix_in_ckpt,

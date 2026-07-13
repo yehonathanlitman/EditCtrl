@@ -269,10 +269,23 @@ class VideoInpaintingDataset(Dataset):
                     for m in binary_masks
                 ]
 
+                # Zero the inside-mask region of vace_video so `reactive` is 0.
+                # Matches the _zero_inside_mask step the *_editctrl.py scripts do
+                # at inference; without it, VACE's reactive channel would leak
+                # the GT pixels inside the mask during training.
+                vace_video_pil = []
+                for v, m in zip(video_pil, mask_pil):
+                    v_arr = np.array(v).copy()
+                    m_arr = np.array(m)
+                    if m_arr.ndim == 3:
+                        m_arr = m_arr.mean(axis=2)
+                    v_arr[m_arr > 127] = 0
+                    vace_video_pil.append(Image.fromarray(v_arr))
+
                 return {
                     "prompt": str(caption),
                     "video": video_pil,
-                    "vace_video": video_pil,
+                    "vace_video": vace_video_pil,
                     "vace_video_mask": mask_pil,
                 }
             except Exception as e:

@@ -275,7 +275,7 @@ class WanVideoPipeline(BasePipeline):
         # LongCat-Video
         longcat_video: list[Image.Image] = None,
         # VAE tiling
-        tiled: bool = True,
+        tiled: bool = False,
         tile_size: tuple[int, int] = (30, 52),
         tile_stride: tuple[int, int] = (15, 26),
         # Sliding window
@@ -770,34 +770,50 @@ class WanVideoUnit_InpaintMask(PipelineUnit):
 
     def __init__(self):
         super().__init__(
-            input_params=("vace_video_mask", "latents", "inpaint_local_enabled", "inpaint_global_enabled"),
+            input_params=("vace_video", "vace_video_mask", "tiled", "tile_size", "tile_stride",
+                          "inpaint_local_enabled", "inpaint_global_enabled"),
             output_params=("mask_bool_latent", "mask_bool_token", "mask_bool_token_dilate", "downsampled_input_latents"),
-            onload_model_names=(),
+            onload_model_names=("vae",),
         )
+
+    @staticmethod
+    def _sample_and_resize_video(video: torch.Tensor, target_size=(256, 256), frame_step: int = 4) -> torch.Tensor:
+        """Ported from DiffSynthInpaint fork. Sample every `frame_step`-th frame
+        (starting at frame 0) and bilinear-resize each to `target_size`.
+        Input: (B, C, T, H, W). Output: (B, C, T_sampled, target_H, target_W)."""
+        import torch.nn.functional as F
+        b, c, t, h, w = video.shape
+        frame_indices = torch.arange(0, t, max(1, frame_step), device=video.device)
+        sampled = video[:, :, frame_indices, :, :]
+        b, c, t_s, h, w = sampled.shape
+        flat = sampled.permute(0, 2, 1, 3, 4).reshape(b * t_s, c, h, w)
+        resized = F.interpolate(flat, size=target_size, mode="bilinear", align_corners=False)
+        return resized.view(b, t_s, c, *target_size).permute(0, 2, 1, 3, 4)
 
     def process(
         self,
         pipe,
+        vace_video,
         vace_video_mask,
-        latents,
+        tiled=False, tile_size=None, tile_stride=None,
         inpaint_local_enabled=False,
         inpaint_global_enabled=False,
     ):
+        empty = {"mask_bool_latent": None, "mask_bool_token": None,
+                 "mask_bool_token_dilate": None, "downsampled_input_latents": None}
         if not (inpaint_local_enabled or inpaint_global_enabled):
-            return {"mask_bool_latent": None, "mask_bool_token": None, "mask_bool_token_dilate": None, "downsampled_input_latents": None}
+            return empty
         if vace_video_mask is None:
-            return {"mask_bool_latent": None, "mask_bool_token": None, "mask_bool_token_dilate": None, "downsampled_input_latents": None}
+            return empty
 
         from ..utils.inpaint_mask import compute_downsampled_masks_tensor, dilate_mask
         import torch.nn.functional as F
 
         if not isinstance(vace_video_mask, torch.Tensor):
             vace_video_mask = pipe.preprocess_video(vace_video_mask, min_value=0, max_value=1)
-
         m = vace_video_mask[0, :1]   # (1, T, H, W)
-
         mask_token = compute_downsampled_masks_tensor(m, factor=16)
-        mask_token = dilate_mask(mask_token, dilation_radius=2)
+        mask_token = dilate_mask(mask_token, dilation_radius=1)
         mask_latent = F.interpolate(mask_token, scale_factor=2, mode="nearest")
 
         out = {
@@ -807,10 +823,19 @@ class WanVideoUnit_InpaintMask(PipelineUnit):
             "downsampled_input_latents": None,
         }
 
-        if inpaint_global_enabled:
-            out["downsampled_input_latents"] = F.interpolate(
-                latents, scale_factor=(1.0, 0.5, 0.5), mode="area"
-            )
+        if inpaint_global_enabled and vace_video is not None:
+            pipe.load_models_to_device(("vae",))
+            if not isinstance(vace_video, torch.Tensor):
+                vace_video = pipe.preprocess_video(vace_video)
+            T = vace_video.shape[2]
+            step = max(1, T // 8)
+            down_video = self._sample_and_resize_video(vace_video, target_size=(256, 256), frame_step=step)
+            down_lat = pipe.vae.encode(
+                down_video, device=pipe.device,
+                tiled=tiled, tile_size=tile_size, tile_stride=tile_stride,
+            ).to(dtype=pipe.torch_dtype, device=pipe.device)
+            # drop the first temporal latent (matches DiffSynthInpaint fork)
+            out["downsampled_input_latents"] = down_lat[:, :, 1:, :, :]
 
         return out
 
